@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>เครื่องมือคำนวณ Carbon Footprint</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--g:#2e7d32;--g2:#e8f5e9;--ink:#1f2d1f;--mut:#5f6f5f;--bd:#d5e3d5}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Sarabun',sans-serif;background:#f4f8f4;color:var(--ink);line-height:1.6}
+header{background:linear-gradient(135deg,#1b5e20,#43a047);color:#fff;padding:32px 20px;text-align:center}
+header h1{margin:0 0 6px;font-size:2rem}header p{margin:0;opacity:.92}
+main{max-width:1100px;margin:0 auto;padding:20px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 2px 6px rgba(0,0,0,.04)}
+.card h2{margin:0 0 4px;color:var(--g);font-size:1.3rem}
+.card .sub{color:var(--mut);font-size:.9rem;margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.field label{display:block;font-weight:600;font-size:.92rem}
+.field small{color:var(--mut);display:block;font-size:.78rem}
+.inp{display:flex;align-items:center;gap:6px;margin-top:4px}
+.inp input{flex:1;min-width:0;padding:8px 10px;border:1px solid #b9ccb9;border-radius:8px;font:inherit}
+.inp input.err{border-color:#d32f2f;background:#ffebee}
+.inp span{font-size:.82rem;color:var(--mut);white-space:nowrap}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:18px 0}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:12px 24px;cursor:pointer;color:#fff}
+#calc{background:var(--g)}#pdf{background:#1565c0}#reset{background:#c62828}
+button:hover{filter:brightness(1.1)}
+#msg{text-align:center;color:#c62828;font-weight:600;min-height:1.4em}
+#result{display:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--g2);border-radius:12px;padding:14px;text-align:center}
+.kpi b{display:block;font-size:1.6rem;color:var(--g)}.kpi span{font-size:.85rem;color:var(--mut)}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px}
+.chartbox{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px;break-inside:avoid}
+.chartbox h3{margin:0 0 8px;font-size:1.05rem}
+.chartbox canvas{max-height:300px}
+.exp{background:#f6faf6;border-left:4px solid var(--g);padding:8px 12px;margin-top:10px;font-size:.9rem;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{background:var(--g2);color:var(--g)}
+tfoot td{font-weight:700;background:#f1f8f1}
+.tips li{margin-bottom:4px}
+.note{font-size:.8rem;color:var(--mut)}
+#pdfwrap{position:absolute;left:0;top:0;width:794px;background:#fff;z-index:-9999;padding:0}
+#pdfwrap .charts{display:block}
+#pdfwrap .card,#pdfwrap .chartbox{box-shadow:none;margin:0}
+#pdfwrap .chartbox canvas,#pdfwrap .chartbox img{display:block;margin:0 auto}
+@media(max-width:480px){.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌏 เครื่องมือคำนวณ Carbon Footprint</h1>
+  <p>ประเมินปริมาณก๊าซเรือนกระจกจากกิจกรรมในชีวิตประจำวันของคุณ (หน่วย kgCO₂e)</p>
+</header>
+<main>
+  <div class="card"><b>วิธีใช้:</b> กรอกปริมาณที่คุณใช้ใน <u>1 เดือน</u> ให้ครบทุกช่อง (หากไม่ได้ใช้ให้ใส่ 0) แล้วกด “ประมวลผลข้อมูล” ระบบคำนวณจาก <i>ปริมาณกิจกรรม × ค่าสัมประสิทธิ์การปล่อย (Emission Factor)</i> ตามแนวทางของ IPCC / อบก. (TGO) และงานวิจัยด้าน Life Cycle Assessment</div>
+  <form id="form" onsubmit="return false"></form>
+  <div id="msg"></div>
+  <div class="btns">
+    <button id="calc">📊 ประมวลผลข้อมูล</button>
+    <button id="pdf" disabled style="opacity:.5">📄 ดาวน์โหลดรายงาน PDF</button>
+    <button id="reset">🔄 รีเซ็ตหน้า</button>
+  </div>
+
+  <div id="result"><div id="report">
+    <div class="card">
+      <h2>📋 รายงานผลการวิเคราะห์ Carbon Footprint</h2>
+      <p class="sub" id="date"></p>
+      <div class="kpis" id="kpis"></div>
+      <div class="exp" id="level"></div>
+    </div>
+    <div class="card">
+      <h2>ตารางที่ 1 สรุปรายหมวดหมู่</h2>
+      <p class="sub">แสดงปริมาณการปล่อยก๊าซเรือนกระจกแยกตามหมวดกิจกรรม</p>
+      <table id="t1"></table>
+      <div class="exp" id="e1"></div>
+    </div>
+    <div class="card">
+      <h2>ตารางที่ 2 รายละเอียดรายกิจกรรม</h2>
+      <p class="sub">เรียงจากมากไปน้อย (เฉพาะรายการที่มีค่ามากกว่า 0)</p>
+      <table id="t2"></table>
+    </div>
+    <div class="charts">
+      <div class="chartbox"><h3>กราฟที่ 1 สัดส่วนตามหมวด (Doughnut)</h3><canvas id="c1"></canvas><div class="exp" id="e2"></div></div>
+      <div class="chartbox"><h3>กราฟที่ 2 เปรียบเทียบรายหมวด (แท่ง)</h3><canvas id="c2"></canvas><div class="exp" id="e3"></div></div>
+      <div class="chartbox"><h3>กราฟที่ 3 กิจกรรมที่ปล่อยสูงสุด 8 อันดับ</h3><canvas id="c3"></canvas><div class="exp" id="e4"></div></div>
+      <div class="chartbox"><h3>กราฟที่ 4 เปรียบเทียบกับค่ามาตรฐาน (tCO₂e/คน/ปี)</h3><canvas id="c4"></canvas><div class="exp" id="e5"></div></div>
+      <div class="chartbox"><h3>กราฟที่ 5 เรดาร์ลักษณะการปล่อย</h3><canvas id="c5"></canvas><div class="exp" id="e6"></div></div>
+      <div class="chartbox"><h3>กราฟที่ 6 การปล่อยสะสมรายเดือนเทียบเป้าหมาย</h3><canvas id="c6"></canvas><div class="exp" id="e7"></div></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h2>💡 ข้อเสนอแนะในการลดคาร์บอน</h2>
+      <ul class="tips" id="tips"></ul>
+      <p class="note">หมายเหตุ: ค่าสัมประสิทธิ์เป็นค่าประมาณเฉลี่ย (เช่น ไฟฟ้าไทย ≈ 0.5986 kgCO₂e/kWh) ผลลัพธ์ใช้เพื่อการเรียนรู้และประเมินเบื้องต้น ไม่ใช่การรับรองอย่างเป็นทางการ ค่ากิจกรรมดิจิทัลมีความไม่แน่นอนสูง</p>
+    </div>
+  </div></div>
+</main>
+
+<script>
+const CATS=[
+{id:'food',name:'การกินอาหาร',icon:'🍚',color:'#ef6c00',sub:'ปริมาณอาหารที่บริโภคต่อเดือน (ค่า EF รวมตลอดห่วงโซ่การผลิต)',items:[
+['beef','เนื้อวัว','kg',27,'เลี้ยงสัตว์เคี้ยวเอื้อง ปล่อยมีเทนสูง'],
+['pork','เนื้อหมู','kg',12.1,''],['chicken','เนื้อไก่/เป็ด','kg',6.9,''],
+['fish','ปลาและอาหารทะเล','kg',5.4,''],['egg','ไข่','kg',4.8,'ไข่ 1 ฟอง ≈ 0.06 kg'],
+['rice','ข้าว/แป้ง','kg',2.7,'นาข้าวปล่อยก๊าซมีเทน'],['veg','ผัก','kg',2.0,''],
+['fruit','ผลไม้','kg',1.1,''],['milk','นม/ผลิตภัณฑ์นม','L',1.9,'']]},
+{id:'home',name:'ที่อยู่อาศัยและพลังงาน',icon:'🏠',color:'#fbc02d',sub:'ดูได้จากบิลค่าไฟ ค่าน้ำ และถังแก๊สประจำเดือน',items:[
+['elec','ไฟฟ้า','kWh',0.5986,'EF ไฟฟ้าไทย (อบก.)'],['lpg','แก๊สหุงต้ม LPG','kg',3.0,'ถังเล็ก 15 kg'],
+['water','น้ำประปา','m³',0.7,'รวมการผลิตและสูบจ่ายน้ำ']]},
+{id:'trans',name:'การเดินทาง',icon:'🚗',color:'#1e88e5',sub:'ระยะทางรวมต่อเดือนแยกตามพาหนะ (ผู้โดยสาร-กิโลเมตร)',items:[
+['car','รถยนต์ส่วนตัว (น้ำมัน)','km',0.17,''],['ev','รถยนต์ไฟฟ้า','km',0.08,'ขึ้นกับสัดส่วนพลังงานของกริด'],
+['moto','รถจักรยานยนต์','km',0.07,''],['bus','รถโดยสารประจำทาง','km',0.09,''],
+['rail','รถไฟฟ้า BTS/MRT/รถไฟ','km',0.04,''],['taxi','แท็กซี่/แอปเรียกรถ','km',0.19,''],
+['fdom','เที่ยวบินในประเทศ','km',0.25,''],['fint','เที่ยวบินต่างประเทศ','km',0.15,'ระยะเฉลี่ยรวมต่อเดือน']]},
+{id:'waste',name:'ขยะและของเสีย',icon:'🗑️',color:'#6d4c41',sub:'ปริมาณขยะที่นำไปฝังกลบ/เผา',items:[
+['gw','ขยะทั่วไป','kg',0.5,'ฝังกลบ ปล่อยมีเทน'],['fw','เศษอาหาร','kg',0.7,''],
+['plastic','ถุงพลาสติก/ขวดพลาสติก','ชิ้น',0.08,'']]},
+{id:'cons',name:'การบริโภคและดิจิทัล',icon:'💻',color:'#8e24aa',sub:'รวม Digital Footprint จากการใช้อินเทอร์เน็ตและอุปกรณ์',items:[
+['cloth','เสื้อผ้าซื้อใหม่','ชิ้น',10,'วัฏจักรชีวิตผลิตภัณฑ์'],['elecdev','อุปกรณ์อิเล็กทรอนิกส์ซื้อใหม่ (เฉลี่ยต่อเดือน)','เครื่อง',50,'มือถือ ≈ 70 kg / โน้ตบุ๊ก ≈ 300 kg'],
+['parcel','พัสดุ/สั่งของออนไลน์','ชิ้น',0.8,''],['stream','ดูวิดีโอสตรีมมิ่ง','ชั่วโมง',0.055,'ศูนย์ข้อมูลและเครือข่าย'],
+['data','ใช้ข้อมูลอินเทอร์เน็ตมือถือ','GB',0.06,'ค่าโดยประมาณ']]}
+];
+const BENCH=[['เป้าหมาย 1.5°C (2030)',2.3],['ค่าเฉลี่ยคนไทย',3.7],['ค่าเฉลี่ยโลก',4.7]];
+const TREE=21; // kgCO2/ต้น/ปี
+const $=id=>document.getElementById(id);
+const fmt=(n,d=1)=>n.toLocaleString('th-TH',{minimumFractionDigits:d,maximumFractionDigits:d});
+let charts=[];
+
+// สร้างฟอร์ม
+$('form').innerHTML=CATS.map(c=>`<div class="card"><h2>${c.icon} ${c.name}</h2><p class="sub">${c.sub}</p><div class="grid">`+
+ c.items.map(i=>`<div class="field"><label for="${i[0]}">${i[1]}</label>${i[4]?`<small>${i[4]}</small>`:''}<div class="inp"><input type="number" min="0" step="any" id="${i[0]}" placeholder="0"><span>${i[2]}/เดือน</span></div></div>`).join('')+`</div></div>`).join('');
+
+function compute(){
+  let ok=true;const rows=[];
+  CATS.forEach(c=>c.items.forEach(i=>{
+    const el=$(i[0]);const v=el.value.trim();
+    if(v===''||isNaN(+v)||+v<0){el.classList.add('err');ok=false}else el.classList.remove('err');
+    rows.push({cat:c,id:i[0],name:i[1],unit:i[2],ef:i[3],qty:+v||0,kg:(+v||0)*i[3]});
+  }));
+  return ok?rows:null;
+}
+
+$('calc').onclick=()=>{
+  const rows=compute();
+  if(!rows){$('msg').textContent='⚠️ กรุณากรอกข้อมูลให้ครบทุกช่อง (ถ้าไม่ได้ใช้ให้ใส่ 0)';const e=document.querySelector('.err');e&&e.scrollIntoView({behavior:'smooth',block:'center'});return}
+  $('msg').textContent='';render(rows);
+  $('pdf').disabled=false;$('pdf').style.opacity=1;
+  $('result').style.display='block';$('result').scrollIntoView({behavior:'smooth'});
+};
+
+function render(rows){
+  charts.forEach(c=>c.destroy());charts=[];
+  const month=rows.reduce((s,r)=>s+r.kg,0),year=month*12,tY=year/1000;
+  const cats=CATS.map(c=>({c,kg:rows.filter(r=>r.cat===c).reduce((s,r)=>s+r.kg,0)}));
+  const pct=k=>month?k/month*100:0;
+  const top=[...cats].sort((a,b)=>b.kg-a.kg)[0];
+  const digital=rows.filter(r=>['stream','data','parcel','elecdev'].includes(r.id)).reduce((s,r)=>s+r.kg,0);
+  $('date').textContent='จัดทำเมื่อ '+new Date().toLocaleDateString('th-TH',{dateStyle:'long'});
+  $('kpis').innerHTML=`<div class="kpi"><b>${fmt(month)}</b><span>kgCO₂e / เดือน</span></div>
+  <div class="kpi"><b>${fmt(tY,2)}</b><span>tCO₂e / ปี (ประมาณการ)</span></div>
+  <div class="kpi"><b>${fmt(year/TREE,0)}</b><span>ต้นไม้ที่ต้องปลูกเพื่อชดเชยต่อปี</span></div>
+  <div class="kpi"><b>${fmt(digital)}</b><span>kgCO₂e/เดือน จาก Digital Footprint</span></div>`;
+  let lv,adv;
+  if(tY<2.3){lv='ระดับต่ำ 🟢';adv='ต่ำกว่าเป้าหมายระดับโลกที่สอดคล้องกับ 1.5°C'}
+  else if(tY<3.7){lv='ระดับปานกลาง 🟡';adv='ต่ำกว่าค่าเฉลี่ยคนไทย แต่ยังสูงกว่าเป้าหมาย 1.5°C'}
+  else if(tY<6){lv='ระดับค่อนข้างสูง 🟠';adv='สูงกว่าค่าเฉลี่ยคนไทย ควรวางแผนลดการปล่อยในหมวดที่สูงที่สุด'}
+  else{lv='ระดับสูงมาก 🔴';adv='สูงกว่าค่าเฉลี่ยโลกอย่างชัดเจน ควรปรับพฤติกรรมอย่างเร่งด่วน'}
+  $('level').innerHTML=`<b>การประเมินภาพรวม: ${lv}</b> — คุณปล่อยประมาณ ${fmt(tY,2)} ตันCO₂e ต่อปี ${adv} หมวดที่ปล่อยมากที่สุดคือ <b>${top.c.name}</b> (${fmt(pct(top.kg),1)}%)`;
+
+  $('t1').innerHTML=`<thead><tr><th>หมวดหมู่</th><th>kgCO₂e/เดือน</th><th>kgCO₂e/ปี</th><th>สัดส่วน (%)</th></tr></thead><tbody>`+
+   cats.map(x=>`<tr><td>${x.c.icon} ${x.c.name}</td><td>${fmt(x.kg)}</td><td>${fmt(x.kg*12,0)}</td><td>${fmt(pct(x.kg))}</td></tr>`).join('')+
+   `</tbody><tfoot><tr><td>รวมทั้งหมด</td><td>${fmt(month)}</td><td>${fmt(year,0)}</td><td>100.0</td></tr></tfoot>`;
+  $('e1').textContent='ตารางนี้สรุปการปล่อยรวมของแต่ละหมวด ค่ารายปีประมาณการจากค่ารายเดือน × 12 หมวดที่มีสัดส่วนสูงคือจุดที่ควรเริ่มลดก่อนเพราะให้ผลคุ้มค่าที่สุด';
+  const det=rows.filter(r=>r.kg>0).sort((a,b)=>b.kg-a.kg);
+  $('t2').innerHTML=`<thead><tr><th>กิจกรรม</th><th>ปริมาณ</th><th>EF (kgCO₂e/หน่วย)</th><th>kgCO₂e/เดือน</th><th>%</th></tr></thead><tbody>`+
+   (det.length?det.map(r=>`<tr><td>${r.cat.icon} ${r.name}</td><td>${fmt(r.qty,2)} ${r.unit}</td><td>${r.ef}</td><td>${fmt(r.kg,2)}</td><td>${fmt(pct(r.kg))}</td></tr>`).join(''):'<tr><td colspan="5">ไม่มีข้อมูลการปล่อย</td></tr>')+'</tbody>';
+
+  Chart.defaults.font.family='Sarabun';Chart.defaults.animation=false;
+  const mk=(id,cfg)=>charts.push(new Chart($(id),cfg));
+  const labels=cats.map(x=>x.c.name),colors=cats.map(x=>x.c.color),vals=cats.map(x=>+x.kg.toFixed(2));
+  mk('c1',{type:'doughnut',data:{labels,datasets:[{data:vals,backgroundColor:colors}]},options:{plugins:{legend:{position:'bottom'}}}});
+  $('e2').textContent=`กราฟโดนัทแสดงสัดส่วนของแต่ละหมวดต่อการปล่อยทั้งหมด ${top.c.name} เป็นสัดส่วนใหญ่สุดที่ ${fmt(pct(top.kg))}% ช่วยให้เห็นภาพรวมว่าคาร์บอนมาจากด้านใดมากที่สุด`;
+  mk('c2',{type:'bar',data:{labels,datasets:[{label:'kgCO₂e/เดือน',data:vals,backgroundColor:colors}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
+  $('e3').textContent='กราฟแท่งใช้เปรียบเทียบปริมาณการปล่อยจริงระหว่างหมวด (หน่วย kgCO₂e ต่อเดือน) เหมาะกับการดูความต่างของขนาดการปล่อยแต่ละด้าน';
+  const t8=det.slice(0,8);
+  mk('c3',{type:'bar',data:{labels:t8.map(r=>r.name),datasets:[{label:'kgCO₂e/เดือน',data:t8.map(r=>+r.kg.toFixed(2)),backgroundColor:t8.map(r=>r.cat.color)}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+  $('e4').textContent=t8.length?`กิจกรรมเดี่ยวที่ปล่อยมากที่สุดคือ “${t8[0].name}” (${fmt(t8[0].kg)} kgCO₂e/เดือน) การลดกิจกรรมอันดับต้น ๆ จะลดคาร์บอนรวมได้มากที่สุด`:'ไม่มีข้อมูล';
+  mk('c4',{type:'bar',data:{labels:['คุณ',...BENCH.map(b=>b[0])],datasets:[{data:[+tY.toFixed(2),...BENCH.map(b=>b[1])],backgroundColor:['#2e7d32','#66bb6a','#ffb74d','#e57373']}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'tCO₂e/ปี'}}}}});
+  $('e5').textContent=`เปรียบเทียบกับค่าอ้างอิง: คุณ ${fmt(tY,2)} เทียบกับค่าเฉลี่ยคนไทย ≈ 3.7, ค่าเฉลี่ยโลก ≈ 4.7 และเป้าหมายต่อคนที่สอดคล้องกับ 1.5°C ≈ 2.3 tCO₂e/ปี (ค่าอ้างอิงโดยประมาณ)`;
+  mk('c5',{type:'radar',data:{labels,datasets:[{label:'สัดส่วน (%)',data:cats.map(x=>+pct(x.kg).toFixed(1)),backgroundColor:'rgba(46,125,50,.25)',borderColor:'#2e7d32',pointBackgroundColor:'#2e7d32'}]},options:{scales:{r:{beginAtZero:true}},plugins:{legend:{display:false}}}});
+  $('e6').textContent='กราฟเรดาร์แสดง “รูปทรง” ของการปล่อย ยิ่งยื่นออกไปทางหมวดใดแสดงว่าหมวดนั้นมีสัดส่วนสูง รูปทรงที่สมดุลหมายถึงไม่มีหมวดใดโดดเด่นเกินไป';
+  const mon=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  mk('c6',{type:'line',data:{labels:mon,datasets:[
+    {label:'การปล่อยของคุณ (สะสม)',data:mon.map((_,i)=>+(month*(i+1)/1000).toFixed(3)),borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,.15)',fill:true,tension:.2},
+    {label:'เป้าหมาย 2.3 tCO₂e/ปี',data:mon.map((_,i)=>+(2.3*(i+1)/12).toFixed(3)),borderColor:'#c62828',borderDash:[6,4],pointRadius:0}]},
+    options:{plugins:{legend:{position:'bottom'}},scales:{y:{beginAtZero:true,title:{display:true,text:'tCO₂e สะสม'}}}}});
+  const gap=tY-2.3;
+  $('e7').textContent=gap>0?`หากใช้ชีวิตในรูปแบบนี้ตลอดปี จะปล่อยเกินเป้าหมายประมาณ ${fmt(gap,2)} tCO₂e (ต้องลดประมาณ ${fmt(gap/tY*100,0)}%)`:'การปล่อยสะสมของคุณอยู่ภายใต้เป้าหมายตลอดทั้งปี ขอให้รักษาพฤติกรรมนี้ต่อไป';
+
+  const tips=[];
+  const g=id=>rows.find(r=>r.id===id).kg;
+  if(g('beef')>20)tips.push('ลดเนื้อวัว/เนื้อแดง แล้วเพิ่มโปรตีนจากพืช ไข่ หรือไก่ ช่วยลดคาร์บอนด้านอาหารได้มาก');
+  if(top.c.id==='trans'||g('car')+g('taxi')>100)tips.push('เปลี่ยนจากรถส่วนตัวเป็นขนส่งสาธารณะ จักรยาน หรือเดิน และใช้การเดินทางร่วมกัน (Carpool)');
+  if(g('fdom')+g('fint')>0)tips.push('เที่ยวบินปล่อยสูงต่อกิโลเมตร ควรลดการบินโดยไม่จำเป็น เลือกประชุมออนไลน์หรือเดินทางทางราง');
+  if(g('elec')>60)tips.push('ใช้เครื่องปรับอากาศเบอร์ 5 ตั้ง 25–26°C เปลี่ยนเป็นหลอด LED หรือติดโซลาร์เซลล์');
+  if(g('fw')+g('gw')>15)tips.push('คัดแยกขยะ ทำปุ๋ยหมักจากเศษอาหาร และลดการกินทิ้งกินขว้าง');
+  if(digital>10)tips.push('ลดความละเอียดวิดีโอสตรีมมิ่งเมื่อไม่จำเป็น ใช้ Wi-Fi แทนข้อมูลมือถือ และยืดอายุการใช้งานอุปกรณ์อิเล็กทรอนิกส์');
+  if(g('cloth')>20)tips.push('ซื้อเสื้อผ้ามือสองหรือเลือกของที่ใช้งานได้นาน (Slow Fashion)');
+  tips.push('ชดเชยคาร์บอนส่วนที่เหลือด้วยการปลูกต้นไม้หรือสนับสนุนโครงการคาร์บอนเครดิตที่น่าเชื่อถือ');
+  $('tips').innerHTML=tips.map(t=>`<li>${t}</li>`).join('');
+}
+
+$('pdf').onclick=async()=>{
+  if($('pdf').disabled)return;
+  const btn=$('pdf');btn.textContent='⏳ กำลังสร้าง PDF...';btn.disabled=true;
+  const oldY=window.scrollY;window.scrollTo(0,0);
+  const wrap=document.createElement('div');wrap.id='pdfwrap';
+  try{
+    await document.fonts.ready;
+    const clone=$('report').cloneNode(true);
+    // แทน canvas ด้วยรูปภาพ เพื่อให้กราฟคงรูปเดิม
+    const o=$('report').querySelectorAll('canvas'),c=clone.querySelectorAll('canvas');
+    c.forEach((cv,i)=>{const im=new Image();im.src=o[i].toDataURL('image/png');im.style.cssText='max-width:100%;max-height:290px;width:auto;height:auto';cv.replaceWith(im)});
+    // แยกตารางที่ 2 เป็นหลายส่วนหากยาว
+    const t2=clone.querySelector('#t2');
+    if(t2){
+      const card=t2.closest('.card'),rows=[...t2.querySelectorAll('tbody tr')],per=16;
+      if(rows.length>per){
+        let ref=card;
+        for(let i=per;i<rows.length;i+=per){
+          const cc=card.cloneNode(true);
+          cc.querySelector('h2').textContent='ตารางที่ 2 (ต่อ)';
+          const sp=cc.querySelector('.sub');if(sp)sp.remove();
+          const tb=cc.querySelector('tbody');tb.innerHTML='';
+          rows.slice(i,i+per).forEach(r=>tb.appendChild(r.cloneNode(true)));
+          ref.after(cc);ref=cc;
+        }
+        rows.slice(per).forEach(r=>r.remove());
+      }
+    }
+    clone.querySelectorAll('[id]').forEach(e=>e.removeAttribute('id'));
+    wrap.appendChild(clone);document.body.appendChild(wrap);
+    await new Promise(r=>setTimeout(r,300));
+    const blocks=[];
+    [...clone.children].forEach(ch=>{ch.classList.contains('charts')?blocks.push(...ch.children):blocks.push(ch)});
+
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const PW=210,PH=297,M=10,CW=PW-2*M,GAP=4;
+    let y=M;
+    for(const b of blocks){
+      const cv=await html2canvas(b,{scale:2,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0});
+      const w=CW,h=cv.height/cv.width*CW;
+      if(y+h>PH-M-4&&y>M){pdf.addPage();y=M}
+      let drawH=h,drawW=w;
+      if(h>PH-2*M-4){drawH=PH-2*M-4;drawW=cv.width/cv.height*drawH}
+      pdf.addImage(cv.toDataURL('image/jpeg',.93),'JPEG',M+(CW-drawW)/2,y,drawW,drawH);
+      y+=drawH+GAP;
+    }
+    const n=pdf.getNumberOfPages();
+    for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFontSize(8);pdf.setTextColor(120);
+      pdf.text('Carbon Footprint Report  |  Page '+i+' / '+n,PW/2,PH-5,{align:'center'})}
+    pdf.save('carbon-footprint-report.pdf');
+  }catch(e){console.error(e);alert('สร้าง PDF ไม่สำเร็จ: '+e.message)}
+  finally{wrap.remove();window.scrollTo(0,oldY);btn.textContent='📄 ดาวน์โหลดรายงาน PDF';btn.disabled=false}
+};
+
+$('reset').onclick=()=>{
+  if(!confirm('ต้องการล้างข้อมูลทั้งหมดและเริ่มใหม่หรือไม่?'))return;
+  $('form').reset();document.querySelectorAll('input').forEach(i=>{i.value='';i.classList.remove('err')});
+  charts.forEach(c=>c.destroy());charts=[];
+  $('result').style.display='none';$('msg').textContent='';
+  $('pdf').disabled=true;$('pdf').style.opacity=.5;
+  window.scrollTo({top:0,behavior:'smooth'});
+};
+</script>
+</body>
+</html>
